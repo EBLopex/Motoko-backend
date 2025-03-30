@@ -17,30 +17,20 @@ actor {
         tipoSangre : Text;
         curp : Text;
     };
-
     type Documento = {
         idPaciente : Text;
         curp : Text;
         enlace : Text;
     };
-
     var patientKey = 0;
     let patients = Buffer.Buffer<Patient>(0);
-    
-    // Mapeos CURP <-> ID
     let curpToId = HashMap.HashMap<Text, Text>(10, Text.equal, Text.hash);
     let idToCurp = HashMap.HashMap<Text, Text>(10, Text.equal, Text.hash);
-    
-    // Almacenamiento de documentos por CURP
     let documentos = HashMap.HashMap<Text, [Documento]>(10, Text.equal, Text.hash);
-
     private func generateKey() : Text {
         patientKey += 1;
         Nat.toText(patientKey);
     };
-
-    // ========== FUNCIONES PRINCIPALES ==========
-    
   public shared(msg) func createPatient(
       nombre : Text,
       edad : Nat,
@@ -59,14 +49,12 @@ actor {
         tipoSangre = tipoSangre;
         curp = curp;
     };
-        
       patients.add(newPatient);
       curpToId.put(curp, id);
       idToCurp.put(id, curp);
       Debug.print("IDPaciente registrado con CURP: " # curp);
-      id // Retornamos ID solo para usuarios autorizados
+      id
   };
-
   public query func getPatientByCURP(curp : Text) : async ?Patient {
       switch(curpToId.get(curp)) {
           case (?id) {
@@ -78,9 +66,6 @@ actor {
           case null { null };
       };
   };  
-
-    // ========== GESTIÓN DE DOCUMENTOS ==========
-    
     public shared(msg) func subirDocumentos(
         curp : Text,
         enlace : Text
@@ -88,24 +73,19 @@ actor {
         switch(curpToId.get(curp)) {
             case (?id) {
                 let buffer = Buffer.Buffer<Documento>(1);
-                
-                // Cargar documentos existentes
                 switch(documentos.get(curp)) {
                     case (?docs) {
                       for (doc in docs.vals()) {
-                          buffer.add(doc); // Añade cada documento uno por uno
+                          buffer.add(doc);
                       };
                   };
                     case null {};
                 };
-                
-                // Agregar nuevo documento
                 buffer.add({
                     idPaciente = id;
                     curp = curp;
                     enlace = enlace;
                 });
-                
                 documentos.put(curp, Buffer.toArray(buffer));
                 "Documento agregado correctamente"
             };
@@ -114,9 +94,6 @@ actor {
             };
           };
         };
-
-    // ========== ACCESO SEGURO ==========
-    
   public query func obtenerInfoSegura(id : Text) : async ?{
     edad : Nat;
     tipoSangre : Text;
@@ -124,27 +101,20 @@ actor {
 } {
     switch(idToCurp.get(id)) {
         case (?curp) {
-            // CORRECCIÓN: Usar Array.find con el Buffer convertido a Array
             let pacienteEncontrado = Array.find<Patient>(
                 Buffer.toArray(patients),
                 func(p : Patient) = p.id == id
             );
-            
             switch(pacienteEncontrado) {
                 case (?patient) {
-                    // Obtener documentos (manejo seguro de opcional)
                     let docs = switch(documentos.get(curp)) {
                         case (?d) { d };
                         case null { [] };
                     };
-                    
-                    // Extraer solo los enlaces
                     let enlaces = Array.map<Documento, Text>(
                         docs,
                         func(d) { d.enlace }
                     );
-                    
-                    // Retornar datos seguros
                     ?{
                         edad = patient.edad;
                         tipoSangre = patient.tipoSangre;
@@ -157,9 +127,6 @@ actor {
         case null { null };
    };
   };
-
-    // ========== FUNCIONES ACTUALIZADAS ==========
-    
   public shared(msg) func updatePatient(
       curp : Text,
       nombre : Text,
@@ -170,7 +137,6 @@ actor {
   ) : async Text {
       switch(curpToId.get(curp)) {
           case (?id) {
-              // Buscar el índice manualmente
               var index : Nat = 0;
               var found = false;
               label l for (p in patients.vals()) {
@@ -180,7 +146,6 @@ actor {
                   };
                   index += 1;
               };
-              
               if (found) {
                   let originalPatient = patients.get(index);
                   let updatedPatient : Patient = {
@@ -190,7 +155,7 @@ actor {
                       nacimiento = nacimiento;
                       sexo = sexo;
                       tipoSangre = tipoSangre;
-                      curp = originalPatient.curp; // CURP inmutable
+                      curp = originalPatient.curp; 
                   };
                   patients.put(index, updatedPatient);
                   "Paciente actualizado"
@@ -201,7 +166,6 @@ actor {
           case null { "Error: CURP inválido" };
       };
   };
-
   public shared(msg) func deletePatient(curp : Text) : async Text {
       switch(curpToId.get(curp)) {
           case (?id) {
@@ -227,7 +191,4 @@ actor {
           case null { "Error: CURP inválido" };
       };
   };
-
-
-  
 };
